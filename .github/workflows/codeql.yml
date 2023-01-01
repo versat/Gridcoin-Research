@@ -55,7 +55,7 @@ jobs:
         # queries: security-extended,security-and-quality
 
     - name: Prepare environment
-      run: sudo apt install -y libdb-dev libzip-dev libboost-dev qtbase5-dev
+      run: sudo apt install -y libdb-dev libzip-dev libboost-all-dev qtbase5-dev
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, Go, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
