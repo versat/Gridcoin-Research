@@ -1,0 +1,24 @@
+# https://scan.coverity.com/projects/versat-Gridcoin-Research
+
+name: Coverity Scan
+
+on:
+  push:
+    branches: [master, development]
+  schedule:
+    - cron: '0 3 * * 3'
+
+jobs:
+  coverity:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Prepare environment
+      run: sudo apt install -y libdb-dev libdb++-dev libzip-dev libboost-all-dev qtbase5-dev libcurl4-openssl-dev
+    - uses: actions/checkout@v2
+    - run: ./autogen.sh && ./configure  --with-incompatible-bdb
+    - uses: vapier/coverity-scan-action@v1
+      with:
+        command: make
+        project: versat%2FGridcoin-Research
+        email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        token: ${{ secrets.COVERITY_SCAN_TOKEN }}
