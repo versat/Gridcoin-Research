@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Prepare environment
-      run: sudo apt install -y libdb-dev libdb++-dev libzip-dev libboost-all-dev qtbase5-dev libcurl4-openssl-dev
+      run: sudo apt update && sudo apt install -y libdb-dev libdb++-dev libzip-dev libboost-all-dev qtbase5-dev libcurl4-openssl-dev
     - uses: actions/checkout@v2
     - run: ./autogen.sh && ./configure  --with-incompatible-bdb
     - uses: vapier/coverity-scan-action@v1
