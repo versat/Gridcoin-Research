@@ -18,7 +18,7 @@ jobs:
       - name: Install sonar-scanner and build-wrapper
         uses: SonarSource/sonarcloud-github-c-cpp@v1
       - name: Prepare environment
-        run: sudo apt install -y libdb-dev libdb++-dev libzip-dev libboost-all-dev qtbase5-dev libcurl4-openssl-dev
+        run: sudo apt update && sudo apt install -y libdb-dev libdb++-dev libzip-dev libboost-all-dev qtbase5-dev libcurl4-openssl-dev
       - name: Run build-wrapper
         run: |
           ./autogen.sh
