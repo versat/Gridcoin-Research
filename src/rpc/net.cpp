@@ -2,6 +2,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or https://opensource.org/licenses/mit-license.php.
 
+#include <stdexcept>
+
 #include "server.h"
 #include "protocol.h"
 #include "alert.h"
@@ -50,7 +52,7 @@ UniValue addnode(const UniValue& params, bool fHelp)
         CAddress addr;
         CNode* pnode= ConnectNode(addr, strNode.c_str());
         if(!pnode)
-            throw JSONRPCError(-23, "Error: Node connection failed");
+            throw JSONRPCError(RPC_CLIENT_NODE_ALREADY_ADDED, "Error: Node connection failed");
         UniValue result(UniValue::VOBJ);
         result.pushKV("result", "ok");
         return result;
@@ -65,19 +67,51 @@ UniValue addnode(const UniValue& params, bool fHelp)
     if (strCommand == "add")
     {
         if (it != vAddedNodes.end())
-            throw JSONRPCError(-23, "Error: Node already added");
+            throw JSONRPCError(RPC_CLIENT_NODE_ALREADY_ADDED, "Error: Node already added");
         vAddedNodes.push_back(strNode);
     }
     else if(strCommand == "remove")
     {
         if (it == vAddedNodes.end())
-            throw JSONRPCError(-24, "Error: Node has not been added.");
+            throw JSONRPCError(RPC_CLIENT_NODE_NOT_ADDED, "Error: Node has not been added.");
         vAddedNodes.erase(it);
     }
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("result", "ok");
     return result;
+}
+
+UniValue getnodeaddresses(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+                "getnodeaddresses [count]\n"
+                "\nReturn known addresses which can potentially be used to find new nodes in the network\n"
+                "count: How many addresses to return. Limited to the smaller of " + std::to_string(ADDRMAN_GETADDR_MAX) +
+                " or " + std::to_string(ADDRMAN_GETADDR_MAX_PCT) + "% of all known addresses. (default = 1)\n");
+    int count = 1;
+    if(!params[0].isNull())
+        count = params[0].get_int();
+
+    if (count <= 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Address count out of range");
+
+    // returns a shuffled list of CAddress
+    std::vector<CAddress> vAddr = addrman.GetAddr();
+    UniValue ret(UniValue::VARR);
+
+    int address_return_count = std::min<int>(count, vAddr.size());
+    for (int i = 0; i < address_return_count; ++i) {
+        UniValue obj(UniValue::VOBJ);
+        const CAddress& addr = vAddr[i];
+        obj.pushKV("time", (int)addr.nTime);
+        obj.pushKV("services", (uint64_t)addr.nServices);
+        obj.pushKV("address", addr.ToStringIP());
+        obj.pushKV("port", addr.GetPort());
+        ret.push_back(obj);
+    }
+    return ret;
 }
 
 UniValue getaddednodeinfo(const UniValue& params, bool fHelp)
@@ -111,7 +145,7 @@ UniValue getaddednodeinfo(const UniValue& params, bool fHelp)
                 break;
             }
         if (laddedNodes.size() == 0)
-            throw JSONRPCError(-24, "Error: Node has not been added.");
+            throw JSONRPCError(RPC_CLIENT_NODE_NOT_ADDED, "Error: Node has not been added.");
     }
 
     if (!fDns)
@@ -456,7 +490,7 @@ UniValue sendalert(const UniValue& params, bool fHelp)
             "sendalert <message> <privatekey> <minver> <maxver> <priority> <id> [cancelupto]\n"
             "\n"
             "<message> ----> is the alert text message\n"
-            "<privatekey> -> is hex string of alert master private key\n"
+            "<privatekey> -> is WIF encoded alert master private key\n"
             "<minver> -----> is the minimum applicable internal client version\n"
             "<maxver> -----> is the maximum applicable internal client version\n"
             "<priority> ---> is integer priority number\n"
@@ -483,8 +517,20 @@ UniValue sendalert(const UniValue& params, bool fHelp)
     sMsg << (CUnsignedAlert)alert;
     alert.vchMsg = vector<unsigned char>((unsigned char*)&sMsg.begin()[0], (unsigned char*)&sMsg.end()[0]);
 
-    vector<unsigned char> vchPrivKey = ParseHex(params[1].get_str());
-    key.Load(CPrivKey(vchPrivKey.begin(), vchPrivKey.end()), CPubKey(), true);
+    CBitcoinSecret vchSecret;
+
+    if (!vchSecret.SetString(params[0].get_str())) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key");
+    }
+
+    bool fCompressed;
+    CSecret secret = vchSecret.GetSecret(fCompressed);
+    key.Set(secret.begin(), secret.end(), fCompressed);
+
+    if (!key.IsValid()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key");
+    }
+
     if (!key.Sign(Hash(alert.vchMsg), alert.vchSig))
         throw runtime_error(
             "Unable to sign alert, check private key?\n");
@@ -517,7 +563,7 @@ UniValue sendalert2(const UniValue& params, bool fHelp)
             //          0            1    2            3            4        5          6
             "sendalert2 <privatekey> <id> <subverlist> <cancellist> <expire> <priority> <message>\n"
             "\n"
-            "<privatekey> -> is hex string of alert master private key\n"
+            "<privatekey> -> is WIF encoded alert master private key\n"
             "<id> ---------> is the unique alert number\n"
             "<subverlist> -> comma separated list of versions warning applies to\n"
             "<cancellist> -> comma separated ids of alerts to cancel\n"
@@ -557,8 +603,20 @@ UniValue sendalert2(const UniValue& params, bool fHelp)
     sMsg << (CUnsignedAlert)alert;
     alert.vchMsg = vector<unsigned char>((unsigned char*)&sMsg.begin()[0], (unsigned char*)&sMsg.end()[0]);
 
-    vector<unsigned char> vchPrivKey = ParseHex(params[0].get_str());
-    key.Load(CPrivKey(vchPrivKey.begin(), vchPrivKey.end()), CPubKey(), true);
+    CBitcoinSecret vchSecret;
+
+    if (!vchSecret.SetString(params[0].get_str())) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key");
+    }
+
+    bool fCompressed;
+    CSecret secret = vchSecret.GetSecret(fCompressed);
+    key.Set(secret.begin(), secret.end(), fCompressed);
+
+    if (!key.IsValid()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key");
+    }
+
     if (!key.Sign(Hash(alert.vchMsg), alert.vchSig))
         throw runtime_error(
             "Unable to sign alert, check private key?\n");

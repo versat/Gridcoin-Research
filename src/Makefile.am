@@ -23,7 +23,7 @@ LIBUNIVALUE = $(UNIVALUE_LIBS)
 endif
 
 GRIDCOIN_CONFIG_INCLUDES=-I$(builddir)/config
-GRIDCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -I$(srcdir)/bdb53 $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS) $(UNIVALUE_CFLAGS) $(CURL_CFLAGS) $(LIBZIP_CFLAGS)
+GRIDCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj -I$(srcdir)/secp256k1/include $(BDB_CFLAGS) -I$(builddir)/bdb53 $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS) $(UNIVALUE_CFLAGS) $(CURL_CFLAGS) $(LIBZIP_CFLAGS)
 
 LIBGRIDCOIN_UTIL=libgridcoin_util.a
 LIBGRIDCOINQT=qt/libgridcoinqt.a
@@ -190,7 +190,6 @@ GRIDCOIN_CORE_H = \
     support/cleanse.h \
     support/lockedpool.h \
     sync.h \
-    threadinterrupt.h \
     threadsafety.h \
     tinyformat.h \
     txdb.h \
@@ -208,6 +207,7 @@ GRIDCOIN_CORE_H = \
     util/syserror.h \
     util/system.h \
     util/threadnames.h \
+    util/threadinterrupt.h \
     util/time.h \
     util/tokenpipe.h \
     util.h \
@@ -308,7 +308,6 @@ GRIDCOIN_CORE_CPP = addrdb.cpp \
     support/cleanse.cpp \
     support/lockedpool.cpp \
     sync.cpp \
-    threadinterrupt.cpp \
     uint256.cpp \
     util/bip32.cpp \
     util/settings.cpp \
@@ -316,6 +315,7 @@ GRIDCOIN_CORE_CPP = addrdb.cpp \
     util/string.cpp \
     util/syserror.cpp \
     util/system.cpp \
+    util/threadinterrupt.cpp \
     util/threadnames.cpp \
     util/time.cpp \
     util/tokenpipe.cpp \
@@ -429,7 +429,11 @@ gridcoinresearchd_LDADD = \
  $(LIBSECP256K1)
 
 if ENABLE_WALLET
+if EMBEDDED_BDB
 gridcoinresearchd_LDADD += $(LIBDB)
+else
+gridcoinresearchd_LDADD += $(BDB_LIBS)
+endif
 endif
 
 gridcoinresearchd_LDADD += $(CURL_LIBS) $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(LIBZIP_LIBS)

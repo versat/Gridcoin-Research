@@ -2,10 +2,10 @@ dnl require autoconf 2.60 (AS_ECHO/AS_ECHO_N)
 AC_PREREQ([2.60])
 define(_CLIENT_VERSION_MAJOR, 5)
 define(_CLIENT_VERSION_MINOR, 4)
-define(_CLIENT_VERSION_REVISION, 1)
-define(_CLIENT_VERSION_BUILD, 3)
+define(_CLIENT_VERSION_REVISION, 5)
+define(_CLIENT_VERSION_BUILD, 1)
 define(_CLIENT_VERSION_IS_RELEASE, false)
-define(_COPYRIGHT_YEAR, 2022)
+define(_COPYRIGHT_YEAR, 2023)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
 define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[Gridcoin]])
 AC_INIT([Gridcoin],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/gridcoin/Gridcoin-Research/issues],[gridcoin],[https://gridcoin.us/])
@@ -184,6 +184,12 @@ AC_ARG_ENABLE([asm],
   [disable assembly routines (enabled by default)])],
   [use_asm=$enableval],
   [use_asm=yes])
+
+AC_ARG_ENABLE([embedded-bdb],
+  [AS_HELP_STRING([--disable-embedded-bdb],
+  [use embedded bdb instead of the system one (enabled by default)])],
+  [enable_embedded_bdb=$enableval],
+  [enable_embedded_bdb=yes])
 
 if test "$use_asm" = "yes"; then
   AC_DEFINE(USE_ASM, 1, [Define this symbol to build in assembly routines])
@@ -1212,6 +1218,30 @@ else
   AC_MSG_RESULT([no])
 fi
 
+AC_MSG_CHECKING([if embedded bdb should be used])
+if test "$enable_embedded_bdb" = "yes"; then
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+  AC_MSG_CHECKING([if bdb 5.3 links])
+  TEMP_CXXFLAGS="$CXXFLAGS"
+  TEMP_LDFLAGS="$LDFLAGS"
+  CXXFLAGS="$CXXFLAGS $BDB_CFLAGS"
+  LDFLAGS="$LDFLAGS $BDB_LIBS"
+  AC_LANG_PUSH([C++])
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+    #include <db_cxx.h>]],[[
+    #if !(DB_VERSION_MAJOR == 5 && DB_VERSION_MINOR == 3)
+      #error "unsupported bdb version"
+    #endif
+    Db* db = nullptr;
+    ]])],[AC_MSG_RESULT(yes)],[AC_MSG_ERROR([bdb 5.3 does not properly link])])
+  AC_LANG_POP([C++])
+  CXXFLAGS="$TEMP_CXXFLAGS"
+  LDFLAGS="$TEMP_LDFLAGS"
+fi
+AM_CONDITIONAL([EMBEDDED_BDB], [test "$enable_embedded_bdb" = "yes"])
+
 if test "$build_bitcoin_utils$build_bitcoin_libs$build_gridcoinresearchd$bitcoin_enable_qt$use_bench$use_tests" = "nononononono"; then
   AC_MSG_ERROR([No targets! Please specify at least one of: --with-utils --with-libs --with-daemon --with-gui --enable-bench or --enable-tests])
 fi
@@ -1290,6 +1320,8 @@ AC_SUBST(EVENT_PTHREADS_LIBS)
 AC_SUBST(ZMQ_LIBS)
 AC_SUBST(PROTOBUF_LIBS)
 AC_SUBST(QR_LIBS)
+AC_SUBST(BDB_CFLAGS)
+AC_SUBST(BDB_LIBS)
 AC_SUBST(HAVE_FDATASYNC)
 AC_SUBST(HAVE_FULLFSYNC)
 AC_SUBST(HAVE_O_CLOEXEC)
@@ -1324,7 +1356,7 @@ PKGCONFIG_LIBDIR_TEMP="$PKG_CONFIG_LIBDIR"
 unset PKG_CONFIG_LIBDIR
 PKG_CONFIG_LIBDIR="$PKGCONFIG_LIBDIR_TEMP"
 
-ac_configure_args="${ac_configure_args} --disable-shared --with-pic --with-bignum=no --enable-module-recovery"
+ac_configure_args="${ac_configure_args} --disable-shared --with-pic --with-bignum=no --enable-module-recovery --disable-module-ecdh"
 
 ADDITIONAL_BDB_FLAGS=""
 
@@ -1336,7 +1368,9 @@ esac
 
 AC_CONFIG_SUBDIRS([src/univalue])
 AC_CONFIG_SUBDIRS([src/secp256k1])
-AX_SUBDIRS_CONFIGURE([src/bdb53], [[CFLAGS="-Wno-error=implicit-function-declaration"], [CXXFLAGS="-Wno-error=implicit-function-declaration"], [--disable-java], [--disable-jdbc], [--disable-replication], [--enable-cxx], [$ADDITIONAL_BDB_FLAGS]], [], [], [])
+if test "$enable_embedded_bdb" = "yes"; then
+  AX_SUBDIRS_CONFIGURE([src/bdb53], [[CFLAGS="-Wno-error=implicit-function-declaration"], [CXXFLAGS="-Wno-error=implicit-function-declaration"], [--disable-java], [--disable-jdbc], [--disable-replication], [--enable-cxx], [$ADDITIONAL_BDB_FLAGS]], [], [], [])
+fi
 
 AC_OUTPUT
 
